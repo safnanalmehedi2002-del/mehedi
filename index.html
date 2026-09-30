@@ -1,0 +1,1594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FERO FASHION HOUSE - Factory Cost Update</title>
+<meta name="description" content="100% Offline Factory Management and Cost Tracking web application for Fero Fashion House with IndexedDB, P&L Analytics, and Order Calculator.">
+<meta property="og:title" content="FERO FASHION HOUSE - Factory Cost Update">
+<meta property="og:description" content="100% Offline Factory Management and Cost Tracking web application for Fero Fashion House with IndexedDB, P&L Analytics, and Order Calculator.">
+<meta property="og:type" content="website">
+<meta name="twitter:card" content="summary_large_image">
+<!--
+  FERO FASHION HOUSE | Factory Cost Update
+  100% OFFLINE. No external CDN libraries. Dual storage: IndexedDB with automatic LocalStorage fallback.
+  PERFORMANCE ARCHITECTURE:
+   - 'meta' store maintains running aggregate totals and daily P&L buckets for O(1) balance calculations.
+   - High-throughput listing via reverse cursors.
+   - Built-in HTML5 Canvas charts with zero external dependencies.
+-->
+<style>
+  :root{
+    --navy-950:#070c16; --navy-900:#0b1220; --navy-800:#111a2c; --navy-700:#1a2438;
+    --line:rgba(255,255,255,0.08); --text:#e7eaf1; --muted:#8b94a8;
+    --gold:#d4af37; --gold-light:#f4d783; --gold-dark:#b8860b;
+    --danger:#f87171; --success:#34d399; --warn:#fbbf24; --info:#60a5fa;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{ font-family:Arial, Helvetica, sans-serif; background:radial-gradient(circle at 20% 0%, #0e1830 0%, var(--navy-950) 55%); color:var(--text); min-height:100vh; }
+  .brand{ font-family:Georgia, 'Times New Roman', serif; }
+  .gold{ color:var(--gold-light); }
+  .hidden{ display:none !important; }
+  a{ color:inherit; text-decoration:none; }
+  .glass{ background:rgba(255,255,255,0.05); backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px); border:1px solid var(--line); }
+  .card{ background:linear-gradient(145deg, rgba(255,255,255,0.06), rgba(255,255,255,0.015)); backdrop-filter:blur(14px); -webkit-backdrop-filter:blur(14px); border:1px solid var(--line); border-radius:18px; box-shadow:0 10px 30px rgba(0,0,0,0.35); }
+  .btn{ border-radius:12px; padding:12px 18px; font-weight:700; font-size:14px; border:1px solid var(--line); cursor:pointer; transition:filter .15s, background .15s; background:rgba(255,255,255,0.05); color:var(--text); display:inline-flex; align-items:center; justify-content:center; gap:6px; }
+  .btn:hover{ background:rgba(255,255,255,0.09); }
+  .btn-gold{ background:linear-gradient(135deg,var(--gold),var(--gold-light)); color:#101827; border:none; }
+  .btn-gold:hover{ filter:brightness(1.08); }
+  .btn-outline-gold{ border:1px solid var(--gold); color:var(--gold-light); background:transparent; }
+  .btn-outline-gold:hover{ background:rgba(212,175,55,0.12); }
+  .btn-danger{ background:rgba(248,113,113,0.12); color:var(--danger); border:1px solid rgba(248,113,113,0.35); }
+  .btn-danger:hover{ background:rgba(248,113,113,0.22); }
+  input, select, textarea{ width:100%; background:rgba(255,255,255,0.05); border:1px solid var(--line); color:var(--text); border-radius:12px; padding:12px 14px; font-size:14px; font-family:inherit; }
+  input::placeholder, textarea::placeholder{ color:#5c6579; }
+  input:focus, select:focus, textarea:focus{ outline:none; border-color:var(--gold); box-shadow:0 0 0 3px rgba(212,175,55,0.15); }
+  label.field-label{ display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-thumb{ background:var(--navy-700); border-radius:8px; }
+  .fade-in{ animation:fadeIn .3s ease; }
+  @keyframes fadeIn{ from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);} }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.4;} }
+  .pulse-dot{ animation:pulse 1.6s infinite; }
+  .container{ max-width:1180px; margin:0 auto; padding:0 20px; }
+  .flex{ display:flex; } .items-center{ align-items:center; } .justify-between{ justify-content:space-between; }
+  .gap-2{ gap:8px;} .gap-3{ gap:12px;} .gap-4{ gap:16px;}
+  .grid{ display:grid; gap:16px; }
+  .grid-4{ grid-template-columns:repeat(4,1fr); } .grid-3{ grid-template-columns:repeat(3,1fr); }
+  .grid-2{ grid-template-columns:repeat(2,1fr); } .grid-6{ grid-template-columns:repeat(6,1fr); }
+  .mt-1{margin-top:4px;} .mt-2{margin-top:8px;} .mt-3{margin-top:12px;} .mt-4{margin-top:16px;} .mt-6{margin-top:24px;} .mt-8{margin-top:32px;}
+  .mb-1{margin-bottom:4px;} .mb-2{margin-bottom:8px;} .mb-3{margin-bottom:12px;} .mb-4{margin-bottom:16px;} .mb-6{margin-bottom:24px;}
+  .p-4{padding:16px;} .p-5{padding:20px;} .p-6{padding:24px;}
+  .text-xs{font-size:12px;} .text-sm{font-size:13px;} .text-lg{font-size:18px;} .text-xl{font-size:22px;} .text-2xl{font-size:26px;}
+  .font-bold{font-weight:700;} .font-semibold{font-weight:600;}
+  .muted{ color:var(--muted); }
+  .w-full{ width:100%; }
+  .rounded-full{ border-radius:999px; }
+  .badge{ font-size:11px; padding:4px 10px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .table-wrap{ overflow-x:auto; border-radius:14px; border:1px solid var(--line); }
+  table{ width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }
+  thead th{ text-align:left; padding:12px; color:var(--muted); background:rgba(255,255,255,0.03); position:sticky; top:0; font-weight:600; white-space:nowrap; }
+  tbody td{ padding:12px; border-top:1px solid var(--line); vertical-align:middle; }
+  tbody tr:hover{ background:rgba(255,255,255,0.03); }
+  tr.clickable{ cursor:pointer; }
+  .icon-act{ background:rgba(255,255,255,0.06); border:1px solid var(--line); border-radius:8px; padding:5px 8px; cursor:pointer; font-size:13px; margin-right:4px; color:var(--text); transition:background .15s; }
+  .icon-act:hover{ background:rgba(212,175,55,0.18); }
+  .icon-act.del:hover{ background:rgba(248,113,113,0.22); color:var(--danger); }
+  .act-cell{ white-space:nowrap; }
+  @media (max-width:900px){ .grid-4{grid-template-columns:repeat(2,1fr);} .grid-6{grid-template-columns:repeat(2,1fr);} .grid-3{grid-template-columns:repeat(2,1fr);} .grid-2{grid-template-columns:1fr;} }
+  @media (max-width:600px){ .grid-4{grid-template-columns:1fr;} .grid-6{grid-template-columns:1fr;} .grid-3{grid-template-columns:1fr;} .auth-split{grid-template-columns:1fr !important;} }
+
+  /* ---------- AUTH ---------- */
+  .auth-wrap{ min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px; }
+  .auth-split{ display:grid; grid-template-columns:1fr 1fr; width:100%; max-width:980px; border-radius:26px; overflow:hidden; }
+  .auth-side{ padding:44px; }
+  .auth-side.right{ background:rgba(0,0,0,0.22); border-left:1px solid var(--line); }
+  .logo-badge{ width:64px; height:64px; border-radius:16px; display:block; box-shadow:0 8px 24px rgba(212,175,55,0.25); }
+
+  /* ---------- Modal ---------- */
+  .modal-bg{ position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:90; display:flex; align-items:center; justify-content:center; padding:20px; overflow-y:auto; }
+  .modal-box{ width:100%; max-width:520px; padding:24px; margin:auto; max-height:90vh; overflow-y:auto; }
+
+  /* ---------- ERP SHELL ---------- */
+  #app{ display:flex; min-height:100vh; }
+  #sidebar{ width:230px; flex-shrink:0; background:var(--navy-900); border-right:1px solid var(--line); position:sticky; top:0; height:100vh; overflow-y:auto; }
+  .side-logo{ display:flex; align-items:center; gap:10px; padding:18px; border-bottom:1px solid var(--line); }
+  .nav-item{ display:flex; align-items:center; gap:12px; padding:12px 18px; font-size:13.5px; color:var(--muted); cursor:pointer; border-left:3px solid transparent; transition:background .15s, color .15s; }
+  .nav-item:hover{ background:rgba(255,255,255,0.04); color:var(--text); }
+  .nav-item.active{ background:rgba(212,175,55,0.1); color:var(--gold-light); border-left-color:var(--gold); }
+  .nav-icon{ width:18px; text-align:center; }
+  #mainArea{ flex:1; min-width:0; }
+  #topHeader{ position:sticky; top:0; z-index:30; padding:14px 24px; }
+  .search-box{ max-width:280px; }
+  .icon-btn{ width:38px; height:38px; border-radius:10px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.05); border:1px solid var(--line); cursor:pointer; position:relative; color:var(--text); }
+  .icon-btn:hover{ background:rgba(255,255,255,0.1); }
+  .notif-dot{ position:absolute; top:6px; right:7px; width:7px; height:7px; border-radius:50%; background:var(--danger); }
+  .view{ display:none; }
+  .view.active{ display:block; }
+  .stat-icon{ width:40px; height:40px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:18px; }
+  .growth-up{ color:var(--success); } .growth-down{ color:var(--danger); }
+  #sidebarToggle{ display:none; }
+  @media (max-width:860px){
+    #sidebar{ position:fixed; z-index:70; left:-250px; transition:left .2s; }
+    #sidebar.open{ left:0; }
+    #sidebarToggle{ display:flex; }
+  }
+</style>
+</head>
+<body>
+
+<!-- =========================================================== -->
+<!-- AUTH SCREEN                                                 -->
+<!-- =========================================================== -->
+<div id="authScreen" class="auth-wrap">
+  <div class="card auth-split">
+    <div class="auth-side">
+      <div class="flex items-center gap-3 mb-4">
+        <img class="logo-badge" alt="FERO FASHION HOUSE logo" src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMDAgMjAwIj4KPGRlZnM+CjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPgo8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNmNGQ3ODMiLz4KPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjYjg4NjBiIi8+CjwvbGluZWFyR3JhZGllbnQ+CjwvZGVmcz4KPHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9IjE5MiIgaGVpZ2h0PSIxOTIiIHJ4PSIyNCIgZmlsbD0iIzBiMTIyMCIgc3Ryb2tlPSJ1cmwoI2cpIiBzdHJva2Utd2lkdGg9IjMiLz4KPHRleHQgeD0iMTAwIiB5PSI5NSIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsIHNlcmlmIiBmb250LXNpemU9IjYwIiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSJ1cmwoI2cpIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5GRjwvdGV4dD4KPGxpbmUgeDE9IjQwIiB5MT0iMTEyIiB4Mj0iMTYwIiB5Mj0iMTEyIiBzdHJva2U9InVybCgjZykiIHN0cm9rZS13aWR0aD0iMiIvPgo8dGV4dCB4PSIxMDAiIHk9IjE0MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE1IiBsZXR0ZXItc3BhY2luZz0iMiIgZmlsbD0iI2U4ZDhhOCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+RkVSTyBGQVNISU9OPC90ZXh0Pgo8dGV4dCB4PSIxMDAiIHk9IjE2MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBsZXR0ZXItc3BhY2luZz0iNCIgZmlsbD0iIzlhODQ1NSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+SE9VU0U8L3RleHQ+Cjwvc3ZnPgo=">
+        <div>
+          <h1 class="brand text-2xl font-bold gold">FERO FASHION HOUSE</h1>
+          <p class="text-xs muted">Factory Cost Update &middot; 100% Offline</p>
+        </div>
+      </div>
+      <p class="muted text-sm mb-4">Sign in to continue</p>
+      <form id="loginForm">
+        <label class="field-label">Email</label>
+        <input required type="email" id="loginEmail" placeholder="you@ferofashion.com">
+        <label class="field-label mt-3">Password</label>
+        <input required type="password" id="loginPass" placeholder="Enter password">
+        <button class="btn btn-gold w-full mt-4" type="submit">Login to Dashboard</button>
+        <p id="loginMsg" class="text-sm mt-3" style="color:var(--danger)"></p>
+      </form>
+    </div>
+    <div class="auth-side right">
+      <h2 class="text-lg font-bold mb-2">Create Local Account</h2>
+      <p class="muted text-sm mb-4">The first person to sign up becomes the permanent <span class="gold font-semibold">Local Admin</span>. Everyone else signs in as Staff. No internet or server needed — everything stays securely on this device.</p>
+      <form id="signupForm">
+        <label class="field-label">Email</label>
+        <input required type="email" id="suEmail" placeholder="you@ferofashion.com">
+        <label class="field-label mt-3">Password</label>
+        <input required type="password" id="suPass" minlength="4" placeholder="Min 4 characters">
+        <button class="btn btn-outline-gold w-full mt-4" type="submit">Create Account</button>
+        <p id="suMsg" class="text-sm mt-3" style="color:var(--success)"></p>
+      </form>
+      <div class="mt-6" style="border-top:1px solid var(--line); padding-top:14px;">
+        <p class="text-xs muted mb-2">Testing / stuck on a login error?</p>
+        <button onclick="resetLocalAccounts()" class="btn btn-danger w-full text-xs">Reset Local Account Data</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- =========================================================== -->
+<!-- DASHBOARD APP                                                -->
+<!-- =========================================================== -->
+<div id="dashboard" class="hidden">
+<div id="app">
+  <aside id="sidebar">
+    <div class="side-logo">
+      <img src="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMDAgMjAwIj4KPGRlZnM+CjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPgo8c3RvcCBvZmZzZXQ9IjAiIHN0b3AtY29sb3I9IiNmNGQ3ODMiLz4KPHN0b3Agb2Zmc2V0PSIxIiBzdG9wLWNvbG9yPSIjYjg4NjBiIi8+CjwvbGluZWFyR3JhZGllbnQ+CjwvZGVmcz4KPHJlY3QgeD0iNCIgeT0iNCIgd2lkdGg9IjE5MiIgaGVpZ2h0PSIxOTIiIHJ4PSIyNCIgZmlsbD0iIzBiMTIyMCIgc3Ryb2tlPSJ1cmwoI2cpIiBzdHJva2Utd2lkdGg9IjMiLz4KPHRleHQgeD0iMTAwIiB5PSI5NSIgZm9udC1mYW1pbHk9Ikdlb3JnaWEsIHNlcmlmIiBmb250LXNpemU9IjYwIiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSJ1cmwoI2cpIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5GRjwvdGV4dD4KPGxpbmUgeDE9IjQwIiB5MT0iMTEyIiB4Mj0iMTYwIiB5Mj0iMTEyIiBzdHJva2U9InVybCgjZykiIHN0cm9rZS13aWR0aD0iMiIvPgo8dGV4dCB4PSIxMDAiIHk9IjE0MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjE1IiBsZXR0ZXItc3BhY2luZz0iMiIgZmlsbD0iI2U4ZDhhOCIgdGV4dC1hbmNob3I9Im1pZGRsZSI+RkVSTyBGQVNISU9OPC90ZXh0Pgo8dGV4dCB4PSIxMDAiIHk9IjE2MCIgZm9udC1mYW1pbHk9IkFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjExIiBsZXR0ZXItc3BhY2luZz0iNCIgZmlsbD0iIzlhODQ1NSIgdGV4dC1hbmNob3I9Im1pZGRsZSI+SE9VU0U8L3RleHQ+Cjwvc3ZnPgo=" style="width:34px;height:34px;border-radius:9px;" alt="Logo">
+      <div class="brand font-bold gold" style="font-size:14px;line-height:1.1;">FERO FASHION<br>HOUSE</div>
+    </div>
+    <nav id="navList"></nav>
+  </aside>
+
+  <div id="mainArea">
+    <header id="topHeader" class="glass">
+      <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div id="sidebarToggle" class="icon-btn" onclick="document.getElementById('sidebar').classList.toggle('open')">☰</div>
+          <input id="globalSearchInput" class="search-box" placeholder="🔍 Search records..." oninput="handleGlobalSearch(this.value)">
+        </div>
+        <div class="flex items-center gap-3">
+          <span class="badge" style="background:rgba(52,211,153,0.12); color:var(--success); border:1px solid rgba(52,211,153,0.3);">
+            <span class="pulse-dot" style="width:7px;height:7px;border-radius:50%;background:var(--success);"></span> Offline Mode
+          </span>
+          <div class="icon-btn" title="View Notifications" onclick="openNotificationsModal()">🔔<span class="notif-dot"></span></div>
+          <div class="flex items-center gap-2">
+            <div id="userAvatar" class="btn-gold flex items-center justify-center font-bold" style="width:36px;height:36px;border-radius:50%;padding:0;"></div>
+            <div class="text-sm">
+              <div id="userEmailLbl" class="font-semibold"></div>
+              <div id="userRoleLbl" class="text-xs gold"></div>
+            </div>
+          </div>
+          <button onclick="logout()" class="btn text-xs">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="container mt-6" style="padding-bottom:60px;">
+
+      <!-- DASHBOARD -->
+      <section id="view-dashboard" class="view active fade-in">
+        <div class="card p-6 mb-6">
+          <h2 class="text-lg font-bold mb-4">⚡ Quick Entry (Regular Cost)</h2>
+          <form id="txnForm" class="grid grid-6">
+            <div><label class="field-label">Amount (৳)</label><input required type="number" step="0.01" id="txAmount" placeholder="0.00"></div>
+            <div>
+              <label class="field-label">Purpose</label>
+              <input required id="txPurpose" list="purposeList" placeholder="Select or type">
+              <datalist id="purposeList">
+                <option>Raw Material</option><option>Salary</option><option>Utility</option><option>Transport</option><option>Maintenance</option><option>Office Stationery</option><option>Factory Rent</option><option>Food & Snacks</option>
+              </datalist>
+            </div>
+            <div><label class="field-label">Receiver Name</label><input required id="txPerson" placeholder="Person / Vendor"></div>
+            <div><label class="field-label">Note</label><input id="txNote" placeholder="Optional details"></div>
+            <div>
+              <label class="field-label">Receipt</label>
+              <label class="btn w-full text-sm" style="display:flex;align-items:center;justify-content:center;cursor:pointer;border-style:dashed;">
+                📷 <span id="imgLabel" style="margin-left:6px;">Attach</span>
+                <input type="file" id="txImage" accept="image/*" capture="environment" class="hidden">
+              </label>
+            </div>
+            <div style="align-self:end;"><button type="submit" id="addBtn" class="btn btn-gold w-full">+ Add Cost</button></div>
+          </form>
+          <img id="imgPreview" class="hidden mt-3" style="height:70px;border-radius:10px;border:1px solid var(--line);object-fit:cover;" alt="Receipt Preview">
+        </div>
+
+        <div class="grid grid-4">
+          <div class="card p-5">
+            <div class="flex justify-between items-center">
+              <div><div class="text-xs muted">Total Incoming</div><div id="mIncoming" class="text-2xl font-bold mt-2" style="color:var(--success)">৳0</div></div>
+              <div class="stat-icon" style="background:rgba(52,211,153,0.12)">📈</div>
+            </div>
+            <div class="text-xs muted mt-2">Investment + Loan In + Order Revenue + Payments</div>
+          </div>
+          <div class="card p-5">
+            <div class="flex justify-between items-center">
+              <div><div class="text-xs muted">Total Outgoing</div><div id="mOutgoing" class="text-2xl font-bold mt-2" style="color:var(--danger)">৳0</div></div>
+              <div class="stat-icon" style="background:rgba(248,113,113,0.12)">📉</div>
+            </div>
+            <div class="text-xs muted mt-2">Expense + Loan Out + Order Cost</div>
+          </div>
+          <div class="card p-5">
+            <div class="flex justify-between items-center">
+              <div><div class="text-xs muted">Expense (This Month)</div><div id="mExpense" class="text-2xl font-bold mt-2" style="color:var(--warn)">৳0</div></div>
+              <div class="stat-icon" style="background:rgba(251,191,36,0.12)">🧾</div>
+            </div>
+            <div id="mExpenseTrend" class="text-xs mt-2"></div>
+          </div>
+          <div class="card p-5">
+            <div class="flex justify-between items-center">
+              <div><div class="text-xs muted">Cash Balance</div><div id="mCash" class="text-2xl font-bold gold mt-2">৳0</div></div>
+              <div class="stat-icon" style="background:rgba(212,175,55,0.12)">💰</div>
+            </div>
+            <div class="text-xs muted mt-2">Live, updates instantly</div>
+          </div>
+        </div>
+
+        <!-- P&L ANALYTICS -->
+        <div class="card p-6 mt-4">
+          <div class="flex items-center justify-between mb-3">
+            <h3 class="font-bold text-sm">📊 Profit & Loss Trend</h3>
+            <div class="flex gap-2">
+              <select id="pnlGranularity" onchange="drawPnLChart()" style="width:auto;padding:8px 12px;font-size:12px;">
+                <option value="monthly">Monthly (This Year)</option>
+                <option value="yearly">Yearly</option>
+                <option value="range">Custom Date Range</option>
+              </select>
+              <input type="date" id="pnlFrom" class="hidden" style="width:auto;padding:8px 10px;font-size:12px;" onchange="drawPnLChart()">
+              <input type="date" id="pnlTo" class="hidden" style="width:auto;padding:8px 10px;font-size:12px;" onchange="drawPnLChart()">
+            </div>
+          </div>
+          <canvas id="chartPnL" height="200"></canvas>
+        </div>
+
+        <div class="grid grid-2 mt-4">
+          <div class="card p-5"><h3 class="font-bold mb-3 text-sm">Monthly Incoming vs Outgoing</h3><canvas id="chartBar" height="180"></canvas></div>
+          <div class="card p-5"><h3 class="font-bold mb-3 text-sm">Expense Breakdown</h3><canvas id="chartDonut" height="180"></canvas><div id="donutLegend" class="text-xs muted mt-2"></div></div>
+        </div>
+
+        <div class="card p-6 mt-4">
+          <h3 class="font-bold text-sm mb-3">🕒 Recent Entries (Edit / Delete)</h3>
+          <div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Purpose</th><th>Person</th><th>Actions</th></tr></thead><tbody id="dashRecentTbody"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- REGULAR COST -->
+      <section id="view-regularcost" class="view">
+        <div class="card p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold">🧾 Regular Cost / Daily Expenses</h2>
+            <span class="text-xs muted">Showing latest <span id="expShown">0</span> of <span id="expTotalCount">0</span> records 
+              <button class="btn text-xs" style="padding:6px 10px;margin-left:8px;" onclick="showMoreExpenses()">Show 300 more</button>
+            </span>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Date</th><th>Amount</th><th>Purpose</th><th>Person</th><th>Note</th><th>Receipt</th><th>Actions</th></tr></thead><tbody id="expenseTbody"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- LOAN -->
+      <section id="view-loan" class="view">
+        <div class="grid grid-3 mb-4">
+          <div class="card p-5"><div class="text-xs muted">Total Payable (Borrowed In)</div><div id="loanPayableTotal" class="text-2xl font-bold mt-2" style="color:var(--success)">৳0</div></div>
+          <div class="card p-5"><div class="text-xs muted">Total Receivable (Given Out)</div><div id="loanReceivableTotal" class="text-2xl font-bold mt-2" style="color:var(--danger)">৳0</div></div>
+          <div class="card p-5"><div class="text-xs muted">Net Loan Effect on Cash</div><div id="loanNet" class="text-2xl font-bold gold mt-2">৳0</div></div>
+        </div>
+        <div class="card p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold">🏦 Loan / Credit-Debit Tracker</h2>
+            <button class="btn btn-gold text-xs" onclick="openModal('loanModal')">+ Add Loan Entry</button>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Purpose</th><th>Date</th><th>Amount</th><th>Actions</th></tr></thead><tbody id="loanTbody"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- BUYER: MAIN LIST -->
+      <section id="view-buyer" class="view">
+        <div class="card p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold">🧑‍💼 Buyers</h2>
+            <button class="btn btn-gold text-xs" onclick="openModal('buyerModal')">+ Add Buyer</button>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Buyer Name</th><th>Brand</th><th>General Work Type</th><th>Orders</th><th>Actions</th></tr></thead><tbody id="buyerTbody"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- BUYER: DETAIL DRILL-DOWN -->
+      <section id="view-buyerdetail" class="view">
+        <button class="btn text-xs mb-4" onclick="showView('buyer', document.querySelector('[data-view=buyer]'))">← Back to Buyers</button>
+        <div class="card p-6 mb-4">
+          <h2 id="bdName" class="text-lg font-bold gold"></h2>
+          <p class="text-sm muted mt-1"><span id="bdBrand"></span> &middot; <span id="bdWork"></span></p>
+        </div>
+        <div class="grid grid-3 mb-4">
+          <div class="card p-5"><div class="text-xs muted">Total Orders</div><div id="bdOrderCount" class="text-2xl font-bold gold mt-2">0</div></div>
+          <div class="card p-5"><div class="text-xs muted">Total Pieces</div><div id="bdTotalPieces" class="text-2xl font-bold mt-2" style="color:var(--info)">0</div></div>
+          <div class="card p-5"><div class="text-xs muted">Net Profit / Loss (all orders)</div><div id="bdNetProfit" class="text-2xl font-bold mt-2">৳0</div></div>
+        </div>
+        <div class="card p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-bold">Orders & Smart Calculator</h3>
+            <button class="btn btn-gold text-xs" onclick="openOrderModal()">+ Add Order</button>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Item</th><th>Type</th><th>Pieces</th><th>Order→Deadline</th><th>Days Left / Req.</th><th>Per-Day Target</th><th>Revenue</th><th>Cost</th><th>Result</th><th>Actions</th></tr></thead><tbody id="ordersTbody"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- INVENTORY -->
+      <section id="view-inventory" class="view">
+        <div class="card p-6">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold">🏬 Inventory / Stock</h2>
+            <button class="btn btn-gold text-xs" onclick="openModal('invStockModal')">+ Add Stock Item</button>
+          </div>
+          <div class="table-wrap"><table><thead><tr><th>Item</th><th>Category</th><th>Quantity</th><th>Unit</th><th>Status</th><th>Actions</th></tr></thead><tbody id="stockTbody"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- ACCOUNTS -->
+      <section id="view-accounts" class="view">
+        <div class="card p-6 mb-4">
+          <h2 class="text-lg font-bold mb-3">📅 Financial Summary & Filter</h2>
+          <div class="grid grid-3">
+            <div>
+              <label class="field-label">Filter Mode</label>
+              <select id="filterMode" onchange="toggleFilterMode()">
+                <option value="month">Month-by-Month</option>
+                <option value="year">Yearly</option>
+                <option value="range">Custom Date Range</option>
+                <option value="all">All Time</option>
+              </select>
+            </div>
+            <div id="monthFilterWrap"><label class="field-label">Select Month</label><input type="month" id="filterMonth"></div>
+            <div id="yearFilterWrap" class="hidden"><label class="field-label">Select Year</label><input type="number" id="filterYear" placeholder="2026"></div>
+            <div id="rangeFilterWrap" class="hidden grid grid-2" style="gap:8px;">
+              <div><label class="field-label">From</label><input type="date" id="filterFrom"></div>
+              <div><label class="field-label">To</label><input type="date" id="filterTo"></div>
+            </div>
+          </div>
+          <button class="btn btn-gold text-xs mt-3" onclick="renderAccounts()">Apply Filter</button>
+        </div>
+        <div class="grid grid-4 mb-4">
+          <div class="card p-5"><div class="text-xs muted">Income</div><div id="pnlIncome" class="text-xl font-bold mt-2" style="color:var(--success)">৳0</div></div>
+          <div class="card p-5"><div class="text-xs muted">Outgoing</div><div id="pnlOutgoing" class="text-xl font-bold mt-2" style="color:var(--danger)">৳0</div></div>
+          <div class="card p-5"><div class="text-xs muted">Profit / Loss</div><div id="pnlNet" class="text-xl font-bold gold mt-2">৳0</div></div>
+          <div class="card p-5"><div class="text-xs muted">Profit Margin %</div><div id="pnlPercent" class="text-xl font-bold mt-2">0%</div></div>
+        </div>
+        <div class="card p-6 mb-4">
+          <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-bold">💼 Owner Investments</h2>
+            <button class="btn btn-gold text-xs" onclick="openModal('investModal')">+ Add Owner</button>
+          </div>
+          <div class="grid grid-3" id="investCards"></div>
+        </div>
+        <div class="card p-6">
+          <h2 class="text-lg font-bold mb-4">💰 Recent Transactions</h2>
+          <div class="table-wrap"><table><thead><tr><th>Date</th><th>Type</th><th>Party</th><th>Amount</th><th>Actions</th></tr></thead><tbody id="accTransTbody"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- BUYER & OWNER PAYMENTS -->
+      <section id="view-payments" class="view">
+        <div class="grid grid-3 mb-4">
+          <div class="card p-5"><div class="text-xs muted">Total Buyer Payments</div><div id="payBuyerTotal" class="text-2xl font-bold mt-2" style="color:var(--success)">৳0</div></div>
+          <div class="card p-5"><div class="text-xs muted">Total Owner Payments</div><div id="payOwnerTotal" class="text-2xl font-bold mt-2" style="color:var(--success)">৳0</div></div>
+          <div class="card p-5"><div class="text-xs muted">Combined (feeds Accounts Income &amp; Cash Balance)</div><div id="payCombinedTotal" class="text-2xl font-bold gold mt-2">৳0</div></div>
+        </div>
+
+        <div class="card p-6 mb-4">
+          <div class="flex items-center justify-between mb-4"><h2 class="text-lg font-bold">🧑‍💼 Buyer Payments</h2><button class="btn btn-gold text-xs" onclick="openPaymentModal('Buyer')">+ Add Buyer Payment</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Buyer</th><th>Date</th><th>Time</th><th>Method</th><th>Amount</th><th>Purpose / Reference</th><th>Actions</th></tr></thead><tbody id="buyerPaymentsTbody"></tbody></table></div>
+        </div>
+
+        <div class="card p-6">
+          <div class="flex items-center justify-between mb-4"><h2 class="text-lg font-bold">💼 Owner Payments</h2><button class="btn btn-gold text-xs" onclick="openPaymentModal('Owner')">+ Add Owner Payment</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Owner</th><th>Date</th><th>Amount</th><th>Purpose</th><th>Actions</th></tr></thead><tbody id="ownerPaymentsTbody"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- PRODUCTION REPORT -->
+      <section id="view-production" class="view">
+        <div class="grid grid-3 mb-4">
+          <div class="card p-5"><div class="text-xs muted">Total Production Orders</div><div id="prodCount" class="text-2xl font-bold gold mt-2">0</div></div>
+          <div class="card p-5"><div class="text-xs muted">In Progress</div><div id="prodProgress" class="text-2xl font-bold mt-2" style="color:var(--warn)">0</div></div>
+          <div class="card p-5"><div class="text-xs muted">Completed</div><div id="prodDone" class="text-2xl font-bold mt-2" style="color:var(--success)">0</div></div>
+        </div>
+        <div class="card p-6">
+          <div class="flex items-center justify-between mb-4"><h2 class="text-lg font-bold">🏗️ Production Report</h2><button class="btn btn-gold text-xs" onclick="openModal('productionModal')">+ New Production Order</button></div>
+          <div class="table-wrap"><table><thead><tr><th>Product</th><th>Order Qty</th><th>Raw Materials Required</th><th>Start Date</th><th>Status</th><th>Actions</th></tr></thead><tbody id="productionTbody"></tbody></table></div>
+        </div>
+      </section>
+
+      <!-- SETTINGS -->
+      <section id="view-settings" class="view">
+        <div class="card p-6 mb-4">
+          <h2 class="text-lg font-bold mb-4">⚙️ Settings & Profile</h2>
+          <p class="text-sm">Logged in as <span id="setEmail" class="gold font-semibold"></span> — Role: <span id="setRole" class="gold"></span></p>
+          <p class="text-xs muted mt-2">User accounts and permissions are stored locally on this browser without requiring any external cloud or server.</p>
+          
+          <div class="mt-6" style="border-top:1px solid var(--line); padding-top:16px;">
+            <p class="font-semibold text-sm mb-2">📥 Standalone HTML & Data Backup</p>
+            <p class="text-xs muted mb-3">Download the entire web application as a single self-contained HTML file to run anywhere on desktop or mobile without internet.</p>
+            <div class="flex gap-2" style="flex-wrap:wrap;">
+              <button class="btn btn-outline-gold text-xs" onclick="downloadCurrentHtml()">💾 Download Single HTML App</button>
+              <button class="btn text-xs" onclick="exportDataJson()">📤 Export Backup JSON</button>
+              <label class="btn text-xs" style="cursor:pointer;">
+                📥 Import Backup JSON
+                <input type="file" id="importJsonInput" accept=".json" class="hidden" onchange="importDataJson(event)">
+              </label>
+            </div>
+          </div>
+
+          <div class="mt-6" style="border-top:1px solid var(--line); padding-top:16px;">
+            <p class="font-semibold text-sm mb-2">Data Integrity</p>
+            <p class="text-xs muted mb-3">Rebuilds Cash Balance, totals and profit/loss analytics from every saved record. Use this if numbers ever look out of sync.</p>
+            <button class="btn text-xs" onclick="recalculateAll()">Recalculate All Totals</button>
+          </div>
+
+          <div class="mt-6" style="border-top:1px solid var(--line); padding-top:16px;">
+            <p class="font-semibold text-sm mb-2" style="color:var(--danger)">Danger Zone</p>
+            <p class="text-xs muted mb-3">Clears all factory records but keeps your login accounts intact.</p>
+            <button class="btn btn-danger text-xs" onclick="clearAllRecords()">Clear All Factory Records</button>
+          </div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+</div>
+</div>
+
+<!-- ============ MODALS ============ -->
+<div id="editModal" class="modal-bg hidden">
+  <form onsubmit="return saveEdit(event)" class="card modal-box">
+    <h3 id="editTitle" class="font-bold text-lg mb-3">Edit Entry</h3>
+    <input type="hidden" id="editStore"><input type="hidden" id="editId">
+    <div id="editFields"></div>
+    <div class="flex gap-2 mt-4"><button type="button" onclick="closeModal('editModal')" class="btn w-full">Cancel</button><button class="btn btn-gold w-full">Save Changes</button></div>
+  </form>
+</div>
+
+<div id="paymentModal" class="modal-bg hidden">
+  <form onsubmit="return addPayment(event)" class="card modal-box">
+    <h3 id="paymentModalTitle" class="font-bold text-lg mb-3">Add Payment</h3>
+    <input type="hidden" id="payKind">
+    <label class="field-label" id="payNameLabel">Name</label><input required id="payName" placeholder="Buyer / Owner name">
+    <div class="grid grid-2 mt-3">
+      <div><label class="field-label">Payment Date</label><input required type="date" id="payDate"></div>
+      <div id="payTimeWrap"><label class="field-label">Payment Time</label><input type="time" id="payTime"></div>
+    </div>
+    <div class="grid grid-2 mt-3">
+      <div id="payMethodWrap"><label class="field-label">Payment Method</label><select id="payMethod"><option>Cash</option><option>Bank</option><option>Check</option><option>Mobile Banking</option><option>Other</option></select></div>
+      <div><label class="field-label">Amount (৳)</label><input required type="number" step="0.01" id="payAmount" placeholder="0.00"></div>
+    </div>
+    <label class="field-label mt-3">Purpose / Reference</label>
+    <select id="payPurpose">
+      <option>Factory</option><option>Petty Cash</option><option>Factory Staff Loan</option><option>Personal Loan</option>
+      <option>Against of Buyer</option><option>Transport</option><option>Salary</option><option>Conveyance</option><option>Other</option>
+    </select>
+    <div class="flex gap-2 mt-4"><button type="button" onclick="closeModal('paymentModal')" class="btn w-full">Cancel</button><button class="btn btn-gold w-full">Save Payment</button></div>
+  </form>
+</div>
+
+<div id="loanModal" class="modal-bg hidden">
+  <form onsubmit="return addLoan(event)" class="card modal-box">
+    <h3 class="font-bold text-lg mb-3">Add Loan / Credit Entry</h3>
+    <label class="field-label">Creditor / Debtor Name</label><input required id="loanName" placeholder="Bank or individual name">
+    <label class="field-label mt-3">Type</label><select id="loanType"><option value="Payable">Loan Taken (Payable — adds to cash)</option><option value="Receivable">Loan Given (Receivable — subtracts from cash)</option></select>
+    <label class="field-label mt-3">Purpose</label><input required id="loanPurpose" placeholder="e.g. Machinery purchase">
+    <label class="field-label mt-3">Date</label><input required type="date" id="loanDate">
+    <label class="field-label mt-3">Amount</label><input required type="number" step="0.01" id="loanAmount" placeholder="0.00">
+    <div class="flex gap-2 mt-4"><button type="button" onclick="closeModal('loanModal')" class="btn w-full">Cancel</button><button class="btn btn-gold w-full">Save</button></div>
+  </form>
+</div>
+
+<div id="buyerModal" class="modal-bg hidden">
+  <form onsubmit="return addBuyer(event)" class="card modal-box">
+    <h3 class="font-bold text-lg mb-3">Add Buyer</h3>
+    <label class="field-label">Buyer Name</label><input required id="buyerName" placeholder="e.g. Next Sourcing">
+    <label class="field-label mt-3">Brand Name</label><input required id="buyerBrand" placeholder="e.g. Next UK">
+    <label class="field-label mt-3">General Work Type</label><input required id="buyerWorkType" placeholder="e.g. Knitwear, Denim, Woven">
+    <div class="flex gap-2 mt-4"><button type="button" onclick="closeModal('buyerModal')" class="btn w-full">Cancel</button><button class="btn btn-gold w-full">Save</button></div>
+  </form>
+</div>
+
+<div id="orderModal" class="modal-bg hidden">
+  <form onsubmit="return addOrder(event)" class="card modal-box">
+    <h3 class="font-bold text-lg mb-3">Add Buyer Order</h3>
+    <input type="hidden" id="orderBuyerId">
+    <label class="field-label">Item Details</label><input required id="orderItem" placeholder="e.g. 100% Cotton Crewneck T-Shirt">
+    <label class="field-label mt-3">Order Type</label><select id="orderType2"><option value="FOB">FOB (Free on Board)</option><option value="CM">CM (Cut & Make)</option></select>
+    <div class="grid grid-2 mt-3">
+      <div><label class="field-label">Total Pieces</label><input required type="number" id="orderPieces" placeholder="5000"></div>
+      <div><label class="field-label">Factory Daily Capacity (pcs/day)</label><input required type="number" id="orderCapacity" placeholder="800"></div>
+    </div>
+    <div class="grid grid-2 mt-3">
+      <div><label class="field-label">Sale Price / Piece (৳)</label><input required type="number" step="0.01" id="orderPrice" placeholder="8.00"></div>
+      <div><label class="field-label">Production Cost / Piece (৳)</label><input required type="number" step="0.01" id="orderCost" placeholder="6.00"></div>
+    </div>
+    <div class="grid grid-2 mt-3">
+      <div><label class="field-label">Order Date</label><input required type="date" id="orderDate2"></div>
+      <div><label class="field-label">Deadline Date</label><input required type="date" id="orderDeadline"></div>
+    </div>
+    <div class="flex gap-2 mt-4"><button type="button" onclick="closeModal('orderModal')" class="btn w-full">Cancel</button><button class="btn btn-gold w-full">Save Order</button></div>
+  </form>
+</div>
+
+<div id="invStockModal" class="modal-bg hidden">
+  <form onsubmit="return addStock(event)" class="card modal-box">
+    <h3 class="font-bold text-lg mb-3">Add Stock Item</h3>
+    <label class="field-label">Item Name</label><input required id="stockName" placeholder="e.g. 30/1 Combed Cotton">
+    <label class="field-label mt-3">Category</label><select id="stockCategory"><option>Raw Material</option><option>WIP</option><option>Finished Goods</option></select>
+    <div class="grid grid-2 mt-3">
+      <div><label class="field-label">Quantity</label><input required type="number" step="any" id="stockQty" placeholder="100"></div>
+      <div><label class="field-label">Unit</label><input required id="stockUnit" placeholder="pcs / kg / yards / meters"></div>
+    </div>
+    <div class="flex gap-2 mt-4"><button type="button" onclick="closeModal('invStockModal')" class="btn w-full">Cancel</button><button class="btn btn-gold w-full">Save</button></div>
+  </form>
+</div>
+
+<div id="investModal" class="modal-bg hidden">
+  <form onsubmit="return addInvestor(event)" class="card modal-box">
+    <h3 class="font-bold text-lg mb-3">Add Owner Investment</h3>
+    <label class="field-label">Owner Name</label><input required id="invName" placeholder="Managing Partner Name">
+    <label class="field-label mt-3">Investment Amount (৳)</label><input required type="number" step="0.01" id="invAmount" placeholder="500000">
+    <label class="field-label mt-3">Date</label><input required type="date" id="invDate">
+    <div class="flex gap-2 mt-4"><button type="button" onclick="closeModal('investModal')" class="btn w-full">Cancel</button><button class="btn btn-gold w-full">Save</button></div>
+  </form>
+</div>
+
+<div id="productionModal" class="modal-bg hidden">
+  <form onsubmit="return addProduction(event)" class="card modal-box">
+    <h3 class="font-bold text-lg mb-3">New Production Order</h3>
+    <label class="field-label">Product</label><input required id="prodProduct" placeholder="e.g. Men's Polo Shirt">
+    <label class="field-label mt-3">Order Quantity</label><input required type="number" id="prodQty" placeholder="2500">
+    <label class="field-label mt-3">Raw Materials Required</label><textarea id="prodMaterials" rows="2" placeholder="e.g. Cotton yarn 400kg, Buttons 5000pcs, Rib collar 2500pcs"></textarea>
+    <label class="field-label mt-3">Start Date</label><input required type="date" id="prodStart">
+    <label class="field-label mt-3">Status</label><select id="prodStatus"><option>Pending</option><option>In Production</option><option>Completed</option></select>
+    <div class="flex gap-2 mt-4"><button type="button" onclick="closeModal('productionModal')" class="btn w-full">Cancel</button><button class="btn btn-gold w-full">Save</button></div>
+  </form>
+</div>
+
+<!-- NOTIFICATIONS MODAL -->
+<div id="notifModal" class="modal-bg hidden">
+  <div class="card modal-box">
+    <div class="flex items-center justify-between mb-3">
+      <h3 class="font-bold text-lg">🔔 Factory Alerts & Notifications</h3>
+      <button class="btn text-xs" onclick="closeModal('notifModal')">✕</button>
+    </div>
+    <div id="notifList" class="grid gap-2 mt-3"></div>
+    <div class="mt-4"><button class="btn w-full" onclick="closeModal('notifModal')">Close</button></div>
+  </div>
+</div>
+
+<script>
+/* ================================================================
+   AUTH LOGIC
+================================================================= */
+function getUsers(){ try{ return JSON.parse(localStorage.getItem('ffh_users')||'[]'); }catch(e){ return []; } }
+function saveUsers(u){ localStorage.setItem('ffh_users', JSON.stringify(u)); }
+
+document.getElementById('signupForm').addEventListener('submit', e=>{
+  e.preventDefault();
+  const email = document.getElementById('suEmail').value.trim().toLowerCase();
+  const pass = document.getElementById('suPass').value;
+  const msg = document.getElementById('suMsg');
+  let users = getUsers();
+  if(users.find(u=>u.email===email)){ msg.style.color='var(--danger)'; msg.textContent='This account already exists — please login instead.'; return; }
+  const role = users.length===0 ? 'Local Admin' : 'Staff';
+  users.push({email, pass, role});
+  saveUsers(users);
+  msg.style.color='var(--success)';
+  msg.textContent = `Account created as ${role}. You can log in now.`;
+  e.target.reset();
+});
+
+document.getElementById('loginForm').addEventListener('submit', e=>{
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const pass = document.getElementById('loginPass').value;
+  const msg = document.getElementById('loginMsg');
+  const users = getUsers();
+  const user = users.find(u=>u.email===email && u.pass===pass);
+  if(!user){ msg.textContent='Incorrect email or password. If this is your first time, sign up on the right.'; return; }
+  msg.textContent='';
+  sessionStorage.setItem('ffh_session', JSON.stringify(user));
+  boot(user);
+});
+
+function logout(){ sessionStorage.removeItem('ffh_session'); location.reload(); }
+
+function resetLocalAccounts(){
+  if(!confirm('This will erase all local accounts AND all saved factory data on this device. Continue?')) return;
+  localStorage.removeItem('ffh_users');
+  sessionStorage.removeItem('ffh_session');
+  AUTO_STORES.concat(['meta']).forEach(s => localStorage.removeItem(lsKey(s)));
+  try{
+    if(window.indexedDB){
+      const req = indexedDB.deleteDatabase(DB_NAME);
+      req.onsuccess = ()=> location.reload();
+      req.onerror = ()=> location.reload();
+      return;
+    }
+  }catch(e){}
+  location.reload();
+}
+
+/* ================================================================
+   STORAGE LAYER — IndexedDB with automatic LocalStorage fallback
+================================================================= */
+const DB_NAME='fero_fashion_db', DB_VERSION=5;
+const AUTO_STORES=['expenses','investments','loans','buyers','buyerOrders','inventory','production','payments'];
+let db;
+let STORAGE_BACKEND = 'idb';
+const LS_PREFIX = 'ffh_ls_';
+const lsKey = store => LS_PREFIX+store;
+function lsReadAll(store){ try{ return JSON.parse(localStorage.getItem(lsKey(store))||'[]'); }catch(e){ return []; } }
+function lsWriteAll(store, arr){ localStorage.setItem(lsKey(store), JSON.stringify(arr)); }
+function lsNextId(store){ const arr=lsReadAll(store); return arr.length ? Math.max(...arr.map(x=>x.id||0))+1 : 1; }
+
+function openDB(){
+  return new Promise((resolve,reject)=>{
+    try{
+      if(!window.indexedDB) return reject(new Error('IndexedDB not supported in this browser/mode'));
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = e=>{
+        const d = e.target.result;
+        AUTO_STORES.forEach(s=>{ if(!d.objectStoreNames.contains(s)) d.createObjectStore(s,{keyPath:'id',autoIncrement:true}); });
+        if(!d.objectStoreNames.contains('meta')) d.createObjectStore('meta',{keyPath:'key'});
+      };
+      req.onsuccess = e=>{ db=e.target.result; resolve(db); };
+      req.onerror = ()=> reject(req.error || new Error('IndexedDB failed to open'));
+      req.onblocked = ()=> reject(new Error('IndexedDB is blocked by another open tab'));
+    }catch(err){ reject(err); }
+  });
+}
+
+async function initStorage(){
+  try{
+    await openDB();
+    STORAGE_BACKEND = 'idb';
+  }catch(err){
+    console.warn('IndexedDB unavailable — switching to localStorage engine:', err);
+    STORAGE_BACKEND = 'ls';
+  }
+}
+
+function dbAdd(store, data){
+  if(STORAGE_BACKEND==='ls'){
+    return new Promise(res=>{ const arr=lsReadAll(store); const id=lsNextId(store); const rec={...data, id}; arr.push(rec); lsWriteAll(store, arr); res(rec); });
+  }
+  return new Promise((res,rej)=>{
+    try{
+      const tx=db.transaction(store,'readwrite');
+      const req=tx.objectStore(store).add(data);
+      req.onsuccess = ()=> res({ ...data, id: req.result });
+      tx.onerror=()=>rej(tx.error);
+      tx.onabort=()=>rej(tx.error);
+    }catch(err){ rej(err); }
+  });
+}
+function dbGetAll(store){
+  if(STORAGE_BACKEND==='ls') return Promise.resolve(lsReadAll(store));
+  return new Promise((res,rej)=>{
+    try{ const tx=db.transaction(store,'readonly'); const req=tx.objectStore(store).getAll(); req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); }
+    catch(err){ rej(err); }
+  });
+}
+function dbCount(store){
+  if(STORAGE_BACKEND==='ls') return Promise.resolve(lsReadAll(store).length);
+  return new Promise((res,rej)=>{
+    try{ const tx=db.transaction(store,'readonly'); const req=tx.objectStore(store).count(); req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); }
+    catch(err){ rej(err); }
+  });
+}
+function dbGetLatest(store, limit){
+  if(STORAGE_BACKEND==='ls'){ const arr=lsReadAll(store); return Promise.resolve(arr.slice(-limit).reverse()); }
+  return new Promise((res,rej)=>{
+    try{
+      const out=[]; const tx=db.transaction(store,'readonly'); const req=tx.objectStore(store).openCursor(null,'prev');
+      req.onsuccess = e=>{ const cur=e.target.result; if(cur && out.length<limit){ out.push(cur.value); cur.continue(); } else res(out); };
+      req.onerror = ()=> rej(req.error);
+    }catch(err){ rej(err); }
+  });
+}
+function dbGet(store,key){
+  if(STORAGE_BACKEND==='ls'){ const arr=lsReadAll(store); return Promise.resolve(arr.find(x=>x.key===key || x.id===key)); }
+  return new Promise((res,rej)=>{
+    try{ const tx=db.transaction(store,'readonly'); const req=tx.objectStore(store).get(key); req.onsuccess=()=>res(req.result); req.onerror=()=>rej(req.error); }
+    catch(err){ rej(err); }
+  });
+}
+function dbPut(store,data){
+  if(STORAGE_BACKEND==='ls'){
+    const idField = store==='meta' ? 'key' : 'id';
+    const arr=lsReadAll(store); const idx=arr.findIndex(x=>x[idField]===data[idField]);
+    if(idx>=0) arr[idx]=data; else arr.push(data);
+    lsWriteAll(store, arr); return Promise.resolve();
+  }
+  return new Promise((res,rej)=>{
+    try{ const tx=db.transaction(store,'readwrite'); tx.objectStore(store).put(data); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); tx.onabort=()=>rej(tx.error); }
+    catch(err){ rej(err); }
+  });
+}
+function dbDelete(store,id){
+  if(STORAGE_BACKEND==='ls'){ lsWriteAll(store, lsReadAll(store).filter(x=>x.id!==id)); return Promise.resolve(); }
+  return new Promise((res,rej)=>{
+    try{ const tx=db.transaction(store,'readwrite'); tx.objectStore(store).delete(id); tx.oncomplete=()=>res(); tx.onerror=()=>rej(tx.error); tx.onabort=()=>rej(tx.error); }
+    catch(err){ rej(err); }
+  });
+}
+function clearAllRecords(){
+  if(!confirm('This clears all factory data but keeps your login accounts. Continue?')) return;
+  [...AUTO_STORES,'meta'].forEach(s=>localStorage.removeItem(lsKey(s)));
+  if(STORAGE_BACKEND==='idb' && db){
+    try{
+      const tx = db.transaction([...AUTO_STORES,'meta'],'readwrite');
+      [...AUTO_STORES,'meta'].forEach(s=>tx.objectStore(s).clear());
+      tx.oncomplete = ()=> location.reload();
+      tx.onerror = ()=> location.reload();
+      return;
+    }catch(err){}
+  }
+  location.reload();
+}
+
+/* ---- Meta aggregate helpers (O(1) cash balance, O(days) P&L series) ---- */
+async function getTotals(){
+  let t = await dbGet('meta','totals');
+  if(!t) t = {key:'totals', totalExpense:0, totalInvestment:0, totalLoanIn:0, totalLoanOut:0, totalOrderRevenue:0, totalOrderCost:0, totalPayments:0};
+  return t;
+}
+async function getDaily(){
+  let d = await dbGet('meta','daily');
+  if(!d) d = {key:'daily', data:{}};
+  return d;
+}
+async function bumpMeta(field, amount, dateStr, incomeSide){
+  amount = Number(amount)||0;
+  dateStr = dateStr || '1970-01-01';
+  const totals = await getTotals();
+  totals[field] = (totals[field]||0) + amount;
+  await dbPut('meta', totals);
+  const daily = await getDaily();
+  if(!daily.data[dateStr]) daily.data[dateStr] = {income:0, outgoing:0};
+  if(incomeSide) daily.data[dateStr].income += amount; else daily.data[dateStr].outgoing += amount;
+  if(Math.abs(daily.data[dateStr].income)<0.005 && Math.abs(daily.data[dateStr].outgoing)<0.005) delete daily.data[dateStr];
+  await dbPut('meta', daily);
+}
+
+function contribs(store, r){
+  const d = r.date || r.orderDate || '1970-01-01';
+  switch(store){
+    case 'expenses':    return [['totalExpense', r.amount, r.date, false]];
+    case 'investments': return [['totalInvestment', r.amount, r.date, true]];
+    case 'loans':       return r.type==='Payable' ? [['totalLoanIn', r.amount, r.date, true]] : [['totalLoanOut', r.amount, r.date, false]];
+    case 'buyerOrders': return [['totalOrderRevenue', (r.unitPrice||0)*(r.totalPieces||0), r.orderDate, true],
+                                ['totalOrderCost', (r.costPerPiece||0)*(r.totalPieces||0), r.orderDate, false]];
+    case 'payments':    return [['totalPayments', r.amount, r.date, true]];
+    default: return [];
+  }
+}
+async function applyContribs(store, r, sign){
+  for(const [f,a,d,inc] of contribs(store,r)) await bumpMeta(f, sign*(Number(a)||0), d, inc);
+}
+async function rebuildMeta(){
+  const totals = {key:'totals', totalExpense:0, totalInvestment:0, totalLoanIn:0, totalLoanOut:0, totalOrderRevenue:0, totalOrderCost:0, totalPayments:0};
+  const daily = {key:'daily', data:{}};
+  for(const store of ['expenses','investments','loans','buyerOrders','payments']){
+    for(const r of await dbGetAll(store)){
+      for(const [f,a,d,inc] of contribs(store,r)){
+        const amt = Number(a)||0, day = d || '1970-01-01';
+        totals[f] += amt;
+        if(!daily.data[day]) daily.data[day] = {income:0, outgoing:0};
+        daily.data[day][inc?'income':'outgoing'] += amt;
+      }
+    }
+  }
+  await dbPut('meta', totals); await dbPut('meta', daily);
+}
+
+/* ================================================================
+   SIDEBAR
+================================================================= */
+const NAV = [
+  {id:'dashboard', icon:'📊', label:'Dashboard'},
+  {id:'regularcost', icon:'🧾', label:'Regular Cost'},
+  {id:'loan', icon:'🏦', label:'Loan'},
+  {id:'buyer', icon:'🧑\u200d💼', label:'Buyer'},
+  {id:'inventory', icon:'🏬', label:'Inventory'},
+  {id:'accounts', icon:'💰', label:'Accounts'},
+  {id:'payments', icon:'💳', label:'Buyer & Owner Payments'},
+  {id:'production', icon:'🏗️', label:'Production Report'},
+  {id:'settings', icon:'⚙️', label:'Settings'}
+];
+function buildNav(){
+  document.getElementById('navList').innerHTML = NAV.map(n=>`
+    <div class="nav-item ${n.id==='dashboard'?'active':''}" data-view="${n.id}" onclick="showView('${n.id}', this)">
+      <span class="nav-icon">${n.icon}</span><span>${n.label}</span>
+    </div>`).join('');
+}
+function showView(id, el){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  const target = document.getElementById('view-'+id);
+  if(target) target.classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(el) el.classList.add('active');
+  else {
+    const navMatch = document.querySelector(`.nav-item[data-view="${id}"]`);
+    if(navMatch) navMatch.classList.add('active');
+  }
+  document.getElementById('sidebar').classList.remove('open');
+  if(id==='dashboard'){ drawCharts(); drawPnLChart(); }
+  if(id==='accounts') renderAccounts();
+}
+
+/* ================================================================
+   APP STATE + BOOT
+================================================================= */
+let investments=[], loans=[], buyers=[];
+let expLimit=300;
+
+async function boot(user){
+  await initStorage();
+
+  document.getElementById('authScreen').classList.add('hidden');
+  document.getElementById('dashboard').classList.remove('hidden');
+  document.getElementById('userAvatar').textContent = user.email[0].toUpperCase();
+  document.getElementById('userEmailLbl').textContent = user.email;
+  document.getElementById('userRoleLbl').textContent = user.role;
+  document.getElementById('setEmail').textContent = user.email;
+  document.getElementById('setRole').textContent = user.role;
+
+  buildNav();
+  await seedDummyDataIfEmpty();
+  investments = await dbGetAll('investments');
+  loans = await dbGetAll('loans');
+  buyers = await dbGetAll('buyers');
+
+  const now = new Date();
+  document.getElementById('filterMonth').value = now.toISOString().slice(0,7);
+  document.getElementById('filterYear').value = now.getFullYear();
+
+  await renderAll();
+  drawCharts();
+  drawPnLChart();
+}
+
+async function seedDummyDataIfEmpty(){
+  const alreadySeeded = (await dbCount('expenses'))>0;
+  if(!alreadySeeded){
+    const exp=[
+      {amount:12500,purpose:'Raw Material',person:'Karim Textiles',note:'Cotton yarn batch',date:'2026-09-20',img:''},
+      {amount:8000,purpose:'Salary',person:'Floor Staff',note:'Weekly wages',date:'2026-09-21',img:''},
+      {amount:2200,purpose:'Utility',person:'DESCO',note:'Electricity bill',date:'2026-09-22',img:''},
+      {amount:1500,purpose:'Transport',person:'Rahim Logistics',note:'Fabric delivery',date:'2026-09-23',img:''},
+      {amount:4300,purpose:'Maintenance',person:'Machine Tech',note:'Loom servicing',date:'2026-09-24',img:''}
+    ];
+    for(const e of exp){ await dbAdd('expenses', e); await bumpMeta('totalExpense', e.amount, e.date, false); }
+
+    const inv=[{name:'Md. Aminul Islam',amount:2500000,date:'2026-01-05'},{name:'Farhana Chowdhury',amount:1800000,date:'2026-01-05'},{name:'Tanvir Ahmed',amount:950000,date:'2026-02-10'}];
+    for(const i of inv){ await dbAdd('investments', i); await bumpMeta('totalInvestment', i.amount, i.date, true); }
+
+    const ln=[{name:'City Bank Ltd.',type:'Payable',purpose:'Machinery Loan',date:'2026-08-01',amount:600000},{name:'Jamal Traders',type:'Receivable',purpose:'Advance for fabric',date:'2026-09-10',amount:120000}];
+    for(const l of ln){ await dbAdd('loans', l); await bumpMeta(l.type==='Payable'?'totalLoanIn':'totalLoanOut', l.amount, l.date, l.type==='Payable'); }
+
+    const buy=[{name:'H&M Sourcing',brand:'H&M',workType:'Knitwear'},{name:'Zara Bangladesh',brand:'Zara / Inditex',workType:'Denim'}];
+    for(const b of buy){ await dbAdd('buyers', b); }
+    const seededBuyers = await dbGetAll('buyers');
+
+    const ord=[
+      {buyerId:seededBuyers[0]?.id || 1, itemName:'Cotton T-Shirt', orderType:'FOB', totalPieces:5000, dailyCapacity:800, unitPrice:8, costPerPiece:6, orderDate:'2026-09-01', deadlineDate:'2026-09-25'},
+      {buyerId:seededBuyers[1]?.id || 2, itemName:'Denim Jacket', orderType:'CM', totalPieces:2000, dailyCapacity:300, unitPrice:11, costPerPiece:9.5, orderDate:'2026-09-05', deadlineDate:'2026-10-10'}
+    ];
+    for(const o of ord){
+      await dbAdd('buyerOrders', o);
+      const revenue=o.unitPrice*o.totalPieces, cost=o.costPerPiece*o.totalPieces;
+      await bumpMeta('totalOrderRevenue', revenue, o.orderDate, true);
+      await bumpMeta('totalOrderCost', cost, o.orderDate, false);
+    }
+
+    for(const i of [{name:'Cotton Yarn',category:'Raw Material',qty:1200,unit:'kg'},{name:'Half-stitched Shirts',category:'WIP',qty:300,unit:'pcs'},{name:'Cotton T-Shirt',category:'Finished Goods',qty:4500,unit:'pcs'}]) await dbAdd('inventory', i);
+    for(const p of [{product:'Cotton T-Shirt',qty:5000,materials:'Cotton yarn 200kg, Dye 10L',start:'2026-09-15',status:'In Production'},{product:'Denim Jacket',qty:2000,materials:'Denim fabric 500m',start:'2026-09-01',status:'Completed'}]) await dbAdd('production', p);
+
+    const pays=[
+      {kind:'Buyer', name:'H&M Sourcing', date:'2026-09-22', time:'14:30', method:'Bank', amount:150000, purpose:'Against of Buyer'},
+      {kind:'Owner', name:'Md. Aminul Islam', date:'2026-09-15', time:'', method:'', amount:200000, purpose:'Factory'}
+    ];
+    for(const x of pays){ await dbAdd('payments', x); await applyContribs('payments', x, 1); }
+  }
+}
+
+/* ================================================================
+   QUICK ENTRY
+================================================================= */
+let pendingImg='';
+document.getElementById('txImage').addEventListener('change', e=>{
+  const file = e.target.files[0]; if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ev=>{ pendingImg = ev.target.result; document.getElementById('imgPreview').src=pendingImg; document.getElementById('imgPreview').classList.remove('hidden'); document.getElementById('imgLabel').textContent='Attached ✓'; };
+  reader.readAsDataURL(file);
+});
+
+document.getElementById('txnForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  const btn = document.getElementById('addBtn');
+  btn.textContent='Saving...'; btn.disabled=true;
+  try{
+    const entry = {
+      amount: parseFloat(document.getElementById('txAmount').value),
+      purpose: document.getElementById('txPurpose').value,
+      person: document.getElementById('txPerson').value,
+      note: document.getElementById('txNote').value,
+      date: new Date().toISOString().split('T')[0],
+      img: pendingImg
+    };
+    await dbAdd('expenses', entry);
+    await bumpMeta('totalExpense', entry.amount, entry.date, false);
+    e.target.reset();
+    pendingImg=''; document.getElementById('imgPreview').classList.add('hidden'); document.getElementById('imgLabel').textContent='Attach';
+    btn.textContent='✓ Added!';
+    await renderAll(); drawCharts(); drawPnLChart();
+  }catch(err){
+    console.error('Quick Entry save failed:', err);
+    alert('Could not save this entry: '+(err.message||err));
+  }finally{
+    setTimeout(()=>{ btn.textContent='+ Add Cost'; btn.disabled=false; }, 800);
+  }
+});
+
+/* ================================================================
+   MODAL HELPERS + MODULE FORMS
+================================================================= */
+function openModal(id){ document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id){ document.getElementById(id).classList.add('hidden'); }
+function saveErr(err, label){ console.error(label+' save failed:', err); alert('Could not save this '+label+': '+(err.message||err)+'\nPlease check the fields and try again.'); }
+
+async function addLoan(e){
+  e.preventDefault();
+  try{
+    const rec = {name:loanName.value,type:loanType.value,purpose:loanPurpose.value,date:loanDate.value,amount:parseFloat(loanAmount.value)};
+    await dbAdd('loans', rec);
+    await bumpMeta(rec.type==='Payable'?'totalLoanIn':'totalLoanOut', rec.amount, rec.date, rec.type==='Payable');
+    loans = await dbGetAll('loans');
+    closeModal('loanModal'); e.target.reset();
+    await renderAll(); drawCharts(); drawPnLChart();
+  }catch(err){ saveErr(err,'loan entry'); }
+  return false;
+}
+async function addBuyer(e){
+  e.preventDefault();
+  try{
+    await dbAdd('buyers',{name:buyerName.value,brand:buyerBrand.value,workType:buyerWorkType.value});
+    buyers = await dbGetAll('buyers');
+    closeModal('buyerModal'); e.target.reset();
+    await renderAll();
+  }catch(err){ saveErr(err,'buyer'); }
+  return false;
+}
+async function addStock(e){
+  e.preventDefault();
+  try{
+    await dbAdd('inventory',{name:stockName.value,category:stockCategory.value,qty:parseFloat(stockQty.value),unit:stockUnit.value});
+    closeModal('invStockModal'); e.target.reset();
+    await renderAll();
+  }catch(err){ saveErr(err,'stock item'); }
+  return false;
+}
+async function addInvestor(e){
+  e.preventDefault();
+  try{
+    const rec = {name:invName.value,amount:parseFloat(invAmount.value),date:invDate.value};
+    await dbAdd('investments', rec);
+    await bumpMeta('totalInvestment', rec.amount, rec.date, true);
+    investments = await dbGetAll('investments');
+    closeModal('investModal'); e.target.reset();
+    await renderAll(); drawCharts(); drawPnLChart();
+  }catch(err){ saveErr(err,'investment'); }
+  return false;
+}
+function openPaymentModal(kind){
+  document.getElementById('payKind').value = kind;
+  document.getElementById('paymentModalTitle').textContent = 'Add '+kind+' Payment';
+  document.getElementById('payNameLabel').textContent = kind==='Buyer' ? 'Buyer Name' : 'Owner Name';
+  document.getElementById('payDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('payName').value=''; document.getElementById('payAmount').value=''; document.getElementById('payTime').value='';
+  document.getElementById('payTimeWrap').classList.toggle('hidden', kind!=='Buyer');
+  document.getElementById('payMethodWrap').classList.toggle('hidden', kind!=='Buyer');
+  openModal('paymentModal');
+}
+async function addPayment(e){
+  e.preventDefault();
+  try{
+    const kind = document.getElementById('payKind').value;
+    const rec = {
+      kind, name: payName.value, date: payDate.value,
+      time: kind==='Buyer' ? payTime.value : '',
+      method: kind==='Buyer' ? payMethod.value : '',
+      amount: parseFloat(payAmount.value), purpose: payPurpose.value
+    };
+    await dbAdd('payments', rec);
+    await applyContribs('payments', rec, 1);
+    closeModal('paymentModal'); e.target.reset();
+    await refreshAll();
+  }catch(err){ saveErr(err, (document.getElementById('payKind').value||'')+' payment'); }
+  return false;
+}
+async function addProduction(e){
+  e.preventDefault();
+  try{
+    await dbAdd('production',{product:prodProduct.value,qty:parseFloat(prodQty.value),materials:prodMaterials.value,start:prodStart.value,status:prodStatus.value});
+    closeModal('productionModal'); e.target.reset();
+    await renderAll();
+  }catch(err){ saveErr(err,'production order'); }
+  return false;
+}
+
+/* ================================================================
+   EDIT / DELETE (CRUD)
+================================================================= */
+const esc = v => String(v==null?'':v).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const actBtns = (store,id) => `<button class="icon-act" title="Edit" onclick="event.stopPropagation();openEdit('${store}',${id})">✏️</button><button class="icon-act del" title="Delete" onclick="event.stopPropagation();deleteRecord('${store}',${id})">🗑️</button>`;
+
+const EDIT_SCHEMAS = {
+  expenses:{label:'expense', fields:[
+    {k:'amount',l:'Amount (৳)',t:'number'},{k:'purpose',l:'Purpose',t:'text'},{k:'person',l:'Receiver / Person',t:'text'},
+    {k:'note',l:'Note',t:'text',opt:true},{k:'date',l:'Date',t:'date'}]},
+  investments:{label:'investment', fields:[
+    {k:'name',l:'Owner Name',t:'text'},{k:'amount',l:'Investment Amount',t:'number'},{k:'date',l:'Date',t:'date'}]},
+  loans:{label:'loan entry', fields:[
+    {k:'name',l:'Creditor / Debtor Name',t:'text'},
+    {k:'type',l:'Type',t:'select',opts:[['Payable','Loan Taken (Payable — adds to cash)'],['Receivable','Loan Given (Receivable — subtracts from cash)']]},
+    {k:'purpose',l:'Purpose',t:'text'},{k:'date',l:'Date',t:'date'},{k:'amount',l:'Amount',t:'number'}]},
+  buyers:{label:'buyer', fields:[
+    {k:'name',l:'Buyer Name',t:'text'},{k:'brand',l:'Brand Name',t:'text'},{k:'workType',l:'General Work Type',t:'text'}]},
+  buyerOrders:{label:'order', fields:[
+    {k:'itemName',l:'Item Details',t:'text'},
+    {k:'orderType',l:'Order Type',t:'select',opts:[['FOB','FOB (Free on Board)'],['CM','CM (Cut & Make)']]},
+    {k:'totalPieces',l:'Total Pieces',t:'number'},{k:'dailyCapacity',l:'Factory Daily Capacity (pcs/day)',t:'number'},
+    {k:'unitPrice',l:'Sale Price / Piece (৳)',t:'number'},{k:'costPerPiece',l:'Production Cost / Piece (৳)',t:'number'},
+    {k:'orderDate',l:'Order Date',t:'date'},{k:'deadlineDate',l:'Deadline Date',t:'date'}]},
+  inventory:{label:'stock item', fields:[
+    {k:'name',l:'Item Name',t:'text'},
+    {k:'category',l:'Category',t:'select',opts:[['Raw Material','Raw Material'],['WIP','WIP'],['Finished Goods','Finished Goods']]},
+    {k:'qty',l:'Quantity',t:'number'},{k:'unit',l:'Unit',t:'text'}]},
+  production:{label:'production order', fields:[
+    {k:'product',l:'Product',t:'text'},{k:'qty',l:'Order Quantity',t:'number'},
+    {k:'materials',l:'Raw Materials Required',t:'text',opt:true},{k:'start',l:'Start Date',t:'date'},
+    {k:'status',l:'Status',t:'select',opts:[['Pending','Pending'],['In Production','In Production'],['Completed','Completed']]}]},
+  payments:{label:'payment', fields:[
+    {k:'name',l:'Name (Buyer / Owner)',t:'text'},{k:'date',l:'Payment Date',t:'date'},
+    {k:'time',l:'Payment Time',t:'time',opt:true},
+    {k:'method',l:'Payment Method',t:'select',opt:true,opts:[['Cash','Cash'],['Bank','Bank'],['Check','Check'],['Mobile Banking','Mobile Banking'],['Other','Other']]},
+    {k:'amount',l:'Amount (৳)',t:'number'},
+    {k:'purpose',l:'Purpose / Reference',t:'select',opts:[['Factory','Factory'],['Petty Cash','Petty Cash'],['Factory Staff Loan','Factory Staff Loan'],['Personal Loan','Personal Loan'],['Against of Buyer','Against of Buyer'],['Transport','Transport'],['Salary','Salary'],['Conveyance','Conveyance'],['Other','Other']]}]}
+};
+
+async function refreshAll(){
+  investments = await dbGetAll('investments');
+  loans = await dbGetAll('loans');
+  buyers = await dbGetAll('buyers');
+  await renderAll();
+  await drawCharts();
+  await drawPnLChart();
+}
+function showMoreExpenses(){ expLimit += 300; renderAll(); }
+async function recalculateAll(){
+  try{ await rebuildMeta(); await refreshAll(); alert('All totals were recalculated successfully from your records.'); }
+  catch(err){ saveErr(err,'recalculation'); }
+}
+
+async function openEdit(store, id){
+  try{
+    const rec = await dbGet(store, id);
+    if(!rec){ alert('This record no longer exists.'); return; }
+    const schema = EDIT_SCHEMAS[store];
+    document.getElementById('editStore').value = store;
+    document.getElementById('editId').value = id;
+    document.getElementById('editTitle').textContent = 'Edit '+schema.label.charAt(0).toUpperCase()+schema.label.slice(1);
+    const wrap = document.getElementById('editFields');
+    wrap.innerHTML = '';
+    schema.fields.forEach((f,idx)=>{
+      const box = document.createElement('div'); if(idx>0) box.style.marginTop='12px';
+      const lab = document.createElement('label'); lab.className='field-label'; lab.textContent=f.l; box.appendChild(lab);
+      let inp;
+      if(f.t==='select'){
+        inp = document.createElement('select');
+        f.opts.forEach(([v,t])=>{ const o=document.createElement('option'); o.value=v; o.textContent=t; inp.appendChild(o); });
+      } else {
+        inp = document.createElement('input'); inp.type = f.t;
+        if(f.t==='number') inp.step='any';
+      }
+      inp.id = 'ef_'+f.k;
+      if(!f.opt) inp.required = true;
+      inp.value = rec[f.k]==null ? '' : rec[f.k];
+      box.appendChild(inp); wrap.appendChild(box);
+    });
+    openModal('editModal');
+  }catch(err){ saveErr(err,'record'); }
+}
+
+async function saveEdit(e){
+  e.preventDefault();
+  const store = document.getElementById('editStore').value;
+  const id = parseInt(document.getElementById('editId').value);
+  try{
+    const old = await dbGet(store, id);
+    if(!old) throw new Error('This record no longer exists.');
+    const vals = {};
+    for(const f of EDIT_SCHEMAS[store].fields){
+      let v = document.getElementById('ef_'+f.k).value;
+      if(f.t==='number'){ v = parseFloat(v); if(isNaN(v)) throw new Error(f.l+' must be a valid number.'); }
+      else v = v.trim();
+      vals[f.k] = v;
+    }
+    const updated = {...old, ...vals, id:old.id};
+    await applyContribs(store, old, -1);
+    await dbPut(store, updated);
+    await applyContribs(store, updated, 1);
+    closeModal('editModal');
+    await refreshAll();
+  }catch(err){
+    try{ await rebuildMeta(); await refreshAll(); }catch(_){}
+    saveErr(err,'change');
+  }
+  return false;
+}
+
+async function deleteRecord(store, id){
+  const label = EDIT_SCHEMAS[store].label;
+  const extra = store==='buyers' ? ' This also deletes all of this buyer\'s orders.' : '';
+  if(!confirm('Delete this '+label+' permanently?'+extra)) return;
+  try{
+    const old = await dbGet(store, id);
+    if(!old) return;
+    if(store==='buyers'){
+      const orders = (await dbGetAll('buyerOrders')).filter(o=>o.buyerId===id);
+      for(const o of orders){ await applyContribs('buyerOrders', o, -1); await dbDelete('buyerOrders', o.id); }
+      if(currentBuyerId===id) currentBuyerId = null;
+    }
+    await applyContribs(store, old, -1);
+    await dbDelete(store, id);
+    await refreshAll();
+  }catch(err){
+    try{ await rebuildMeta(); await refreshAll(); }catch(_){}
+    saveErr(err,'deletion');
+  }
+}
+
+/* ---- Buyer drill-down + Smart Order Calculator ---- */
+let currentBuyerId=null;
+async function openBuyerDetail(buyerId){
+  currentBuyerId = buyerId;
+  const b = buyers.find(x=>x.id===buyerId);
+  if(!b) return;
+  document.getElementById('bdName').textContent = b.name;
+  document.getElementById('bdBrand').textContent = 'Brand: '+b.brand;
+  document.getElementById('bdWork').textContent = b.workType;
+  showView('buyerdetail', null);
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  await renderBuyerDetail();
+}
+function openOrderModal(){ document.getElementById('orderBuyerId').value = currentBuyerId; document.getElementById('orderDate2').value = new Date().toISOString().split('T')[0]; openModal('orderModal'); }
+async function addOrder(e){
+  e.preventDefault();
+  try{
+    const rec = {
+      buyerId: parseInt(document.getElementById('orderBuyerId').value),
+      itemName: orderItem.value, orderType: orderType2.value,
+      totalPieces: parseFloat(orderPieces.value), dailyCapacity: parseFloat(orderCapacity.value),
+      unitPrice: parseFloat(orderPrice.value), costPerPiece: parseFloat(orderCost.value),
+      orderDate: orderDate2.value, deadlineDate: orderDeadline.value
+    };
+    await dbAdd('buyerOrders', rec);
+    const revenue = rec.unitPrice*rec.totalPieces, cost = rec.costPerPiece*rec.totalPieces;
+    await bumpMeta('totalOrderRevenue', revenue, rec.orderDate, true);
+    await bumpMeta('totalOrderCost', cost, rec.orderDate, false);
+    closeModal('orderModal'); e.target.reset();
+    await renderBuyerDetail(); await renderAll(); drawCharts(); drawPnLChart();
+  }catch(err){ saveErr(err,'buyer order'); }
+  return false;
+}
+async function renderBuyerDetail(){
+  const allOrders = await dbGetAll('buyerOrders');
+  const orders = allOrders.filter(o=>o.buyerId===currentBuyerId);
+  let netProfit=0, totalPieces=0;
+  document.getElementById('ordersTbody').innerHTML = orders.map(o=>{
+    const revenue = o.unitPrice*o.totalPieces, cost = o.costPerPiece*o.totalPieces, profit = revenue-cost;
+    netProfit += profit; totalPieces += o.totalPieces;
+    const daysAvailable = Math.max(1, Math.round((new Date(o.deadlineDate)-new Date(o.orderDate))/86400000));
+    const estimatedDays = Math.ceil(o.totalPieces/o.dailyCapacity);
+    const perDayTarget = Math.ceil(o.totalPieces/daysAvailable);
+    const resultColor = profit>=0 ? 'var(--success)' : 'var(--danger)';
+    return `<tr>
+      <td class="font-semibold">${esc(o.itemName)}</td>
+      <td><span class="badge" style="background:rgba(96,165,250,0.12);color:var(--info)">${esc(o.orderType)}</span></td>
+      <td>${o.totalPieces.toLocaleString()}</td>
+      <td class="muted text-xs">${esc(o.orderDate)} → ${esc(o.deadlineDate)}</td>
+      <td class="text-xs">${daysAvailable}d avail / ${estimatedDays}d req</td>
+      <td class="font-semibold">${perDayTarget.toLocaleString()} pcs/day</td>
+      <td style="color:var(--success)">${fmt(revenue)}</td>
+      <td style="color:var(--danger)">${fmt(cost)}</td>
+      <td><span class="badge" style="background:rgba(255,255,255,0.06);color:${resultColor}">${profit>=0?'Profit ':'Loss '}${fmt(Math.abs(profit))}</span></td>
+      <td class="act-cell">${actBtns('buyerOrders',o.id)}</td>
+    </tr>`;
+  }).join('');
+  document.getElementById('bdOrderCount').textContent = orders.length;
+  document.getElementById('bdTotalPieces').textContent = totalPieces.toLocaleString();
+  document.getElementById('bdNetProfit').textContent = fmt(netProfit);
+  document.getElementById('bdNetProfit').style.color = netProfit>=0 ? 'var(--success)' : 'var(--danger)';
+}
+
+/* ================================================================
+   RENDERERS & FORMATTERS
+================================================================= */
+function fmt(n){
+  n = Number(n||0);
+  const sign = n < 0 ? '-' : '';
+  return sign + '৳' + Math.abs(n).toLocaleString('en-BD');
+}
+const statusColor = s => (s==='Completed' ? 'var(--success)' : (s==='In Production' ? 'var(--warn)' : 'var(--muted)'));
+
+async function renderAll(){
+  const totals = await getTotals();
+  const expLatest = await dbGetLatest('expenses', expLimit);
+  const expCount = await dbCount('expenses');
+  const stock = await dbGetAll('inventory');
+  const production = await dbGetAll('production');
+  const allOrders = await dbGetAll('buyerOrders');
+
+  document.getElementById('expTotalCount').textContent = expCount;
+  document.getElementById('expShown').textContent = expLatest.length;
+  const receipt = e => e.img ? `<img src="${e.img}" style="width:32px;height:32px;border-radius:6px;object-fit:cover;border:1px solid var(--line);cursor:pointer;" onclick="viewReceiptFull('${e.img}')" alt="Receipt">` : '-';
+  document.getElementById('expenseTbody').innerHTML = expLatest.map(e=>`<tr><td class="muted">${esc(e.date)}</td><td class="font-semibold" style="color:var(--danger)">${fmt(e.amount)}</td><td>${esc(e.purpose)}</td><td>${esc(e.person)}</td><td class="muted">${esc(e.note)||'-'}</td><td>${receipt(e)}</td><td class="act-cell">${actBtns('expenses',e.id)}</td></tr>`).join('');
+  document.getElementById('dashRecentTbody').innerHTML = expLatest.slice(0,8).map(e=>`<tr><td class="muted">${esc(e.date)}</td><td class="font-semibold" style="color:var(--danger)">${fmt(e.amount)}</td><td>${esc(e.purpose)}</td><td>${esc(e.person)}</td><td class="act-cell">${actBtns('expenses',e.id)}</td></tr>`).join('');
+
+  document.getElementById('loanTbody').innerHTML = loans.map(l=>`<tr><td class="font-semibold">${esc(l.name)}</td><td><span class="badge" style="background:${l.type==='Payable'?'rgba(52,211,153,0.12)':'rgba(248,113,113,0.12)'};color:${l.type==='Payable'?'var(--success)':'var(--danger)'}">${esc(l.type)}</span></td><td>${esc(l.purpose)}</td><td class="muted">${esc(l.date)}</td><td class="font-semibold gold">${fmt(l.amount)}</td><td class="act-cell">${actBtns('loans',l.id)}</td></tr>`).join('');
+  document.getElementById('loanPayableTotal').textContent = fmt(totals.totalLoanIn);
+  document.getElementById('loanReceivableTotal').textContent = fmt(totals.totalLoanOut);
+  document.getElementById('loanNet').textContent = fmt(totals.totalLoanIn-totals.totalLoanOut);
+
+  document.getElementById('buyerTbody').innerHTML = buyers.map(b=>{
+    const cnt = allOrders.filter(o=>o.buyerId===b.id).length;
+    return `<tr class="clickable" onclick="openBuyerDetail(${b.id})"><td class="font-semibold gold">${esc(b.name)}</td><td>${esc(b.brand)}</td><td class="muted">${esc(b.workType)}</td><td><span class="badge" style="background:rgba(96,165,250,0.12);color:var(--info)">${cnt} order${cnt!==1?'s':''}</span></td><td class="act-cell">${actBtns('buyers',b.id)}</td></tr>`;
+  }).join('');
+
+  document.getElementById('stockTbody').innerHTML = stock.map(s=>`<tr><td class="font-semibold">${esc(s.name)}</td><td><span class="badge" style="background:rgba(96,165,250,0.12);color:var(--info)">${esc(s.category)}</span></td><td>${s.qty}</td><td class="muted">${esc(s.unit)}</td><td>${s.qty>50?'<span class="badge" style="background:rgba(52,211,153,0.12);color:var(--success)">In Stock</span>':'<span class="badge" style="background:rgba(248,113,113,0.12);color:var(--danger)">Low Stock</span>'}</td><td class="act-cell">${actBtns('inventory',s.id)}</td></tr>`).join('');
+
+  document.getElementById('investCards').innerHTML = investments.map(i=>`<div class="glass p-4" style="border-radius:14px;"><div class="text-xs muted">Owner</div><div class="font-semibold">${esc(i.name)}</div><div class="text-lg font-bold gold mt-2">${fmt(i.amount)}</div><div class="text-xs muted mt-1">${esc(i.date)}</div><div class="mt-3">${actBtns('investments',i.id)}</div></div>`).join('');
+
+  document.getElementById('productionTbody').innerHTML = production.map(p=>`<tr><td class="font-semibold">${esc(p.product)}</td><td>${p.qty}</td><td class="muted">${esc(p.materials)}</td><td class="muted">${esc(p.start)}</td><td><span class="badge" style="background:rgba(255,255,255,0.06);color:${statusColor(p.status)}">${esc(p.status)}</span></td><td class="act-cell">${actBtns('production',p.id)}</td></tr>`).join('');
+  document.getElementById('prodCount').textContent = production.length;
+  document.getElementById('prodProgress').textContent = production.filter(p=>p.status==='In Production'||p.status==='Pending').length;
+  document.getElementById('prodDone').textContent = production.filter(p=>p.status==='Completed').length;
+
+  const allPayments = await dbGetAll('payments');
+  const buyerPays = allPayments.filter(x=>x.kind==='Buyer');
+  const ownerPays = allPayments.filter(x=>x.kind==='Owner');
+  document.getElementById('buyerPaymentsTbody').innerHTML = buyerPays.map(x=>`<tr><td class="font-semibold">${esc(x.name)}</td><td class="muted">${esc(x.date)}</td><td class="muted">${esc(x.time)||'-'}</td><td>${esc(x.method)||'-'}</td><td class="font-semibold" style="color:var(--success)">${fmt(x.amount)}</td><td class="muted">${esc(x.purpose)}</td><td class="act-cell">${actBtns('payments',x.id)}</td></tr>`).join('');
+  document.getElementById('ownerPaymentsTbody').innerHTML = ownerPays.map(x=>`<tr><td class="font-semibold">${esc(x.name)}</td><td class="muted">${esc(x.date)}</td><td class="font-semibold" style="color:var(--success)">${fmt(x.amount)}</td><td class="muted">${esc(x.purpose)}</td><td class="act-cell">${actBtns('payments',x.id)}</td></tr>`).join('');
+  document.getElementById('payBuyerTotal').textContent = fmt(buyerPays.reduce((s,x)=>s+x.amount,0));
+  document.getElementById('payOwnerTotal').textContent = fmt(ownerPays.reduce((s,x)=>s+x.amount,0));
+  document.getElementById('payCombinedTotal').textContent = fmt(totals.totalPayments);
+
+  const cash = totals.totalInvestment + totals.totalLoanIn - totals.totalLoanOut - totals.totalExpense + totals.totalOrderRevenue - totals.totalOrderCost + totals.totalPayments;
+  document.getElementById('mIncoming').textContent = fmt(totals.totalInvestment + totals.totalLoanIn + totals.totalOrderRevenue + totals.totalPayments);
+  document.getElementById('mOutgoing').textContent = fmt(totals.totalExpense + totals.totalLoanOut + totals.totalOrderCost);
+  const mCashEl = document.getElementById('mCash');
+  mCashEl.textContent = fmt(cash);
+  mCashEl.style.color = cash < 0 ? 'var(--danger)' : 'var(--gold-light)';
+
+  const now = new Date(); const thisMonth = now.toISOString().slice(0,7);
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth()-1, 1); const lastMonth = lastMonthDate.toISOString().slice(0,7);
+  const daily = await getDaily();
+  const sumRange = (prefix, field) => Object.keys(daily.data).filter(k=>k.startsWith(prefix)).reduce((s,k)=>s+daily.data[k][field],0);
+  const expThis = sumRange(thisMonth,'outgoing');
+  const expLast = sumRange(lastMonth,'outgoing');
+  document.getElementById('mExpense').textContent = fmt(expThis);
+  const pct = expLast>0 ? (((expThis-expLast)/expLast)*100).toFixed(1) : 0;
+  document.getElementById('mExpenseTrend').innerHTML = `<span class="${pct>=0?'growth-down':'growth-up'}">${pct>=0?'▲':'▼'} ${Math.abs(pct)}% vs last month</span>`;
+
+  if(document.getElementById('view-accounts').classList.contains('active')) renderAccounts();
+  if(document.getElementById('view-buyerdetail').classList.contains('active') && currentBuyerId) renderBuyerDetail();
+}
+
+function toggleFilterMode(){
+  const mode = document.getElementById('filterMode').value;
+  document.getElementById('monthFilterWrap').classList.toggle('hidden', mode!=='month');
+  document.getElementById('yearFilterWrap').classList.toggle('hidden', mode!=='year');
+  document.getElementById('rangeFilterWrap').classList.toggle('hidden', mode!=='range');
+}
+
+async function renderAccTrans(){
+  const [ex, inv, ln, pay] = await Promise.all([dbGetLatest('expenses',30), dbGetLatest('investments',30), dbGetLatest('loans',30), dbGetLatest('payments',30)]);
+  const rows = [
+    ...ex.map(r=>({store:'expenses', id:r.id, date:r.date||'', type:'Expense', party:r.person, amount:-r.amount})),
+    ...inv.map(r=>({store:'investments', id:r.id, date:r.date||'', type:'Investment', party:r.name, amount:r.amount})),
+    ...ln.map(r=>({store:'loans', id:r.id, date:r.date||'', type:r.type==='Payable'?'Loan In':'Loan Out', party:r.name, amount:r.type==='Payable'?r.amount:-r.amount})),
+    ...pay.map(r=>({store:'payments', id:r.id, date:r.date||'', type:r.kind+' Payment', party:r.name, amount:r.amount}))
+  ].sort((a,b)=> a.date<b.date?1:-1).slice(0,40);
+  document.getElementById('accTransTbody').innerHTML = rows.map(t=>`<tr><td class="muted">${esc(t.date)}</td><td>${t.type}</td><td>${esc(t.party)}</td><td style="color:${t.amount<0?'var(--danger)':'var(--success)'}">${fmt(t.amount)}</td><td class="act-cell">${actBtns(t.store,t.id)}</td></tr>`).join('');
+}
+
+async function renderAccounts(){
+  renderAccTrans();
+  const daily = await getDaily();
+  const mode = document.getElementById('filterMode').value;
+  let keys;
+  if(mode==='month'){ const m=document.getElementById('filterMonth').value; keys = Object.keys(daily.data).filter(k=>k.startsWith(m)); }
+  else if(mode==='year'){ const y=document.getElementById('filterYear').value; keys = Object.keys(daily.data).filter(k=>k.startsWith(y)); }
+  else if(mode==='range'){ const f=document.getElementById('filterFrom').value||'0000-01-01', t=document.getElementById('filterTo').value||'9999-12-31'; keys = Object.keys(daily.data).filter(k=>k>=f && k<=t); }
+  else { keys = Object.keys(daily.data); }
+
+  const income = keys.reduce((s,k)=>s+daily.data[k].income,0);
+  const outgoing = keys.reduce((s,k)=>s+daily.data[k].outgoing,0);
+  const net = income-outgoing;
+  const pct = income>0 ? ((net/income)*100).toFixed(1) : 0;
+
+  document.getElementById('pnlIncome').textContent = fmt(income);
+  document.getElementById('pnlOutgoing').textContent = fmt(outgoing);
+  document.getElementById('pnlNet').textContent = fmt(net);
+  document.getElementById('pnlNet').style.color = net>=0 ? 'var(--success)' : 'var(--danger)';
+  document.getElementById('pnlPercent').textContent = pct + '%';
+  document.getElementById('pnlPercent').style.color = pct>=0 ? 'var(--success)' : 'var(--danger)';
+}
+
+/* ================================================================
+   CANVAS CHARTS — 100% Offline & Pure Vanilla JS
+================================================================= */
+async function drawCharts(){
+  const expenses = await dbGetAll('expenses');
+  const months = []; const now = new Date();
+  for(let i=5;i>=0;i--){ const d=new Date(now.getFullYear(), now.getMonth()-i, 1); months.push(d.toISOString().slice(0,7)); }
+  const daily = await getDaily();
+  const sumRange = (prefix, field) => Object.keys(daily.data).filter(k=>k.startsWith(prefix)).reduce((s,k)=>s+daily.data[k][field],0);
+  const incomingByMonth = months.map(m=>sumRange(m,'income'));
+  const outgoingByMonth = months.map(m=>sumRange(m,'outgoing'));
+
+  const bc = document.getElementById('chartBar');
+  if(!bc) return;
+  const bctx = bc.getContext('2d');
+  bc.width = bc.clientWidth || 320; bc.height=180; bctx.clearRect(0,0,bc.width,bc.height);
+  const groupW = bc.width/months.length; const maxV = Math.max(...incomingByMonth,...outgoingByMonth,1);
+  months.forEach((m,i)=>{
+    const hIn=(incomingByMonth[i]/maxV)*120, hOut=(outgoingByMonth[i]/maxV)*120;
+    const baseX = i*groupW;
+    bctx.fillStyle='#34d399'; bctx.fillRect(baseX+groupW*0.15, 140-hIn, groupW*0.3, hIn);
+    bctx.fillStyle='#f87171'; bctx.fillRect(baseX+groupW*0.55, 140-hOut, groupW*0.3, hOut);
+    bctx.fillStyle='#8b94a8'; bctx.font='10px Arial'; bctx.textAlign='center';
+    bctx.fillText(m.slice(5), baseX+groupW*0.5, 158);
+  });
+
+  const dc = document.getElementById('chartDonut');
+  if(!dc) return;
+  const dctx = dc.getContext('2d');
+  dc.width = dc.clientWidth || 320; dc.height=180; dctx.clearRect(0,0,dc.width,dc.height);
+  const byPurpose={}; expenses.forEach(e=> byPurpose[e.purpose]=(byPurpose[e.purpose]||0)+e.amount);
+  const entries = Object.entries(byPurpose);
+  const total = entries.reduce((s,[,v])=>s+v,0) || 1;
+  const palette=['#d4af37','#60a5fa','#34d399','#f87171','#fbbf24','#a78bfa','#ec4899','#14b8a6'];
+  let start=-Math.PI/2; const cx=dc.width/2, cy=90, r=68;
+  entries.forEach(([k,v],i)=>{
+    const angle=(v/total)*Math.PI*2;
+    dctx.beginPath(); dctx.moveTo(cx,cy); dctx.arc(cx,cy,r,start,start+angle); dctx.closePath();
+    dctx.fillStyle=palette[i%palette.length]; dctx.fill();
+    start+=angle;
+  });
+  dctx.fillStyle='#0b1220'; dctx.beginPath(); dctx.arc(cx,cy,38,0,Math.PI*2); dctx.fill();
+  document.getElementById('donutLegend').innerHTML = entries.map(([k,v],i)=>`<span style="display:inline-flex;align-items:center;gap:5px;margin-right:10px;margin-top:4px;"><span style="width:8px;height:8px;background:${palette[i%palette.length]};border-radius:50%;display:inline-block;"></span>${k} (${Math.round((v/total)*100)}%)</span>`).join('');
+}
+
+async function drawPnLChart(){
+  const pc = document.getElementById('chartPnL');
+  if(!pc) return;
+  const mode = document.getElementById('pnlGranularity').value;
+  document.getElementById('pnlFrom').classList.toggle('hidden', mode!=='range');
+  document.getElementById('pnlTo').classList.toggle('hidden', mode!=='range');
+  const daily = await getDaily();
+  let labels=[], profits=[];
+
+  if(mode==='monthly'){
+    const y = new Date().getFullYear();
+    for(let m=0;m<12;m++){
+      const key = y+'-'+String(m+1).padStart(2,'0');
+      const keys = Object.keys(daily.data).filter(k=>k.startsWith(key));
+      const inc = keys.reduce((s,k)=>s+daily.data[k].income,0), out = keys.reduce((s,k)=>s+daily.data[k].outgoing,0);
+      labels.push(key.slice(5)); profits.push(inc-out);
+    }
+  } else if(mode==='yearly'){
+    const years = [...new Set(Object.keys(daily.data).map(k=>k.slice(0,4)))].sort();
+    years.forEach(y=>{
+      const keys = Object.keys(daily.data).filter(k=>k.startsWith(y));
+      const inc = keys.reduce((s,k)=>s+daily.data[k].income,0), out = keys.reduce((s,k)=>s+daily.data[k].outgoing,0);
+      labels.push(y); profits.push(inc-out);
+    });
+  } else {
+    const from = document.getElementById('pnlFrom').value || '2026-01-01';
+    const to = document.getElementById('pnlTo').value || new Date().toISOString().split('T')[0];
+    const keys = Object.keys(daily.data).filter(k=>k>=from && k<=to).sort();
+    keys.forEach(k=>{ labels.push(k.slice(5)); profits.push(daily.data[k].income-daily.data[k].outgoing); });
+  }
+  if(labels.length===0){ labels=['No Data']; profits=[0]; }
+
+  const pctx = pc.getContext('2d');
+  pc.width = pc.clientWidth || 600; pc.height=200; pctx.clearRect(0,0,pc.width,pc.height);
+  const maxAbs = Math.max(...profits.map(Math.abs),1);
+  const midY = 100, spanH = 75;
+  const stepX = pc.width/(labels.length>1?labels.length-1:1);
+  pctx.strokeStyle='rgba(255,255,255,0.1)'; pctx.beginPath(); pctx.moveTo(0,midY); pctx.lineTo(pc.width,midY); pctx.stroke();
+  pctx.beginPath(); pctx.strokeStyle='#d4af37'; pctx.lineWidth=2;
+  profits.forEach((p,i)=>{
+    const x = i*stepX, y = midY-(p/maxAbs)*spanH;
+    if(i===0) pctx.moveTo(x,y); else pctx.lineTo(x,y);
+  });
+  pctx.stroke();
+  profits.forEach((p,i)=>{
+    const x=i*stepX, y=midY-(p/maxAbs)*spanH;
+    pctx.fillStyle = p>=0 ? '#34d399' : '#f87171';
+    pctx.beginPath(); pctx.arc(x,y,4,0,Math.PI*2); pctx.fill();
+    pctx.fillStyle='#8b94a8'; pctx.font='10px Arial'; pctx.textAlign='center'; pctx.fillText(labels[i], x, 192);
+  });
+}
+
+window.addEventListener('resize', ()=>{
+  if(document.getElementById('view-dashboard').classList.contains('active')){
+    drawCharts(); drawPnLChart();
+  }
+});
+
+/* ================================================================
+   SEARCH FILTERING (ACTIVE VIEW TABLE ROWS)
+================================================================= */
+function handleGlobalSearch(q){
+  q = (q||'').toLowerCase().trim();
+  const activeView = document.querySelector('.view.active');
+  if(!activeView) return;
+  const rows = activeView.querySelectorAll('tbody tr');
+  rows.forEach(r => {
+    if(!q){ r.style.display=''; return; }
+    const text = r.textContent.toLowerCase();
+    r.style.display = text.includes(q) ? '' : 'none';
+  });
+}
+
+/* ================================================================
+   NOTIFICATIONS / FACTORY ALERTS
+================================================================= */
+async function openNotificationsModal(){
+  const notifList = document.getElementById('notifList');
+  notifList.innerHTML = '<p class="text-sm muted">Scanning factory status...</p>';
+  openModal('notifModal');
+  const [stock, production, orders] = await Promise.all([dbGetAll('inventory'), dbGetAll('production'), dbGetAll('buyerOrders')]);
+  const alerts = [];
+
+  stock.filter(s=>s.qty<=50).forEach(s=>{
+    alerts.push({type:'warn', title:'Low Stock Warning', text:`Item "${s.name}" is low: only ${s.qty} ${s.unit} remaining in ${s.category}.`});
+  });
+
+  const now = new Date();
+  orders.forEach(o=>{
+    const deadline = new Date(o.deadlineDate);
+    const diffDays = Math.round((deadline - now)/86400000);
+    if(diffDays <= 7 && diffDays >= 0){
+      alerts.push({type:'danger', title:'Approaching Order Deadline', text:`Order "${o.itemName}" is due in ${diffDays} day(s) (${o.deadlineDate}). Capacity required: ${Math.ceil(o.totalPieces/Math.max(1,diffDays))} pcs/day.`});
+    }
+  });
+
+  production.filter(p=>p.status==='In Production').forEach(p=>{
+    alerts.push({type:'info', title:'Active Production', text:`"${p.product}" is currently in production (${p.qty} units). Started ${p.start}.`});
+  });
+
+  if(alerts.length===0){
+    notifList.innerHTML = '<div class="card p-4 text-center text-sm muted">✅ All inventory levels and order timelines are operating smoothly.</div>';
+    return;
+  }
+
+  notifList.innerHTML = alerts.map(a=>`
+    <div class="glass p-3" style="border-radius:12px; border-left:3px solid ${a.type==='danger'?'var(--danger)':a.type==='warn'?'var(--warn)':'var(--info)'};">
+      <div class="font-semibold text-sm" style="color:${a.type==='danger'?'var(--danger)':a.type==='warn'?'var(--warn)':'var(--info)'}">${esc(a.title)}</div>
+      <div class="text-xs muted mt-1">${esc(a.text)}</div>
+    </div>
+  `).join('');
+}
+
+/* ================================================================
+   EXPORT / IMPORT / DOWNLOAD ENTIRE APP
+================================================================= */
+function downloadCurrentHtml(){
+  const blob = new Blob([document.documentElement.outerHTML], {type:'text/html'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'Fero_Fashion_House_Factory_Cost_Update.html';
+  a.click();
+}
+
+async function exportDataJson(){
+  const dump = {};
+  for(const s of AUTO_STORES.concat(['meta'])){
+    dump[s] = await dbGetAll(s);
+  }
+  const blob = new Blob([JSON.stringify(dump, null, 2)], {type:'application/json'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `fero_fashion_backup_${new Date().toISOString().slice(0,10)}.json`;
+  a.click();
+}
+
+function importDataJson(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = async ev=>{
+    try{
+      const data = JSON.parse(ev.target.result);
+      if(!confirm('Importing this file will overwrite existing factory records with this backup. Continue?')) return;
+      for(const s of AUTO_STORES){
+        if(data[s] && Array.isArray(data[s])){
+          if(STORAGE_BACKEND==='ls'){
+            lsWriteAll(s, data[s]);
+          } else {
+            const tx = db.transaction(s, 'readwrite');
+            tx.objectStore(s).clear();
+            for(const item of data[s]){ tx.objectStore(s).put(item); }
+            await new Promise(r=>tx.oncomplete=r);
+          }
+        }
+      }
+      await rebuildMeta();
+      await refreshAll();
+      alert('Data imported and totals recalculated successfully!');
+    }catch(err){
+      alert('Failed to parse or restore backup: '+err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function viewReceiptFull(src){
+  const w = window.open('','_blank');
+  if(w) w.document.write(`<body style="margin:0;background:#070c16;display:flex;align-items:center;justify-content:center;height:100vh;"><img src="${src}" style="max-width:95vw;max-height:95vh;border-radius:12px;border:1px solid rgba(255,255,255,0.2);"></body>`);
+}
+
+/* ================================================================
+   INIT
+================================================================= */
+window.addEventListener('DOMContentLoaded', ()=>{
+  const session = sessionStorage.getItem('ffh_session');
+  if(session){
+    boot(JSON.parse(session));
+  }
+});
+</script>
+</body>
+</html>
